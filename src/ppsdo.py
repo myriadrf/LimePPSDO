@@ -107,6 +107,9 @@ class PPSDO(LiteXModule):
     def add_csr(self):
         # Enable.
         self._enable = CSRStorage(description="Enable control for PPSDO core")
+        self.comb += [
+            self.enable.eq(self._enable.storage),
+        ]
 
         # Config.
         self._config_one_s_target     = CSRStorage(32, description="Target value for 1-second interval.")
