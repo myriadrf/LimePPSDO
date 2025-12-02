@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdint.h>
 
 #include <libbase/uart.h>
 #include <libbase/console.h>
@@ -38,6 +39,23 @@ struct vctcxo_tamer_pkt_buf vctcxo_tamer_pkt;
 /*-----------------------------------------------------------------------*/
 /* Helpers                                                               */
 /*-----------------------------------------------------------------------*/
+
+/* Simple local delay in milliseconds using a busy loop.
+ * We avoid using external busy_wait() to prevent toolchain confusion.
+ * Timing is not very accurate but should be enough in this case. */
+static void delay_ms(uint32_t ms)
+{
+    /* Use CONFIG_CLOCK_FREQUENCY from generated/soc.h.
+     * SERV is a bit-serial core. Instructions take 32+ cycles.
+     * Empirical testing shows the loop takes ~320 cycles/iter. */
+    uint32_t cycles_per_ms = CONFIG_CLOCK_FREQUENCY / 1000u;
+    uint32_t iters_per_ms = (cycles_per_ms / 320u) ? (cycles_per_ms / 320u) : 1u;
+    for (uint32_t m = 0; m < ms; m++) {
+        for (volatile uint32_t i = 0; i < iters_per_ms; i++) {
+            __asm__ volatile ("nop");
+        }
+    }
+}
 
 /* Adjusts the trim DAC value based on error, slope, and scale.
  *
@@ -137,6 +155,9 @@ int main(void)
 #endif
                 /* Set trim DAC to minimum value. */
                 vctcxo_trim_dac_write(trimdac_min);
+                // Force a wait
+                delay_ms(2000);
+                vctcxo_tamer_reset_counters(true);
 
                 /* Set next interrupt state. */
                 tune_state = COARSE_TUNE_MAX;
@@ -156,6 +177,9 @@ int main(void)
 
                 /* Set DAC to maximum value. */
                 vctcxo_trim_dac_write(trimdac_max);
+                // Force a wait
+                delay_ms(2000);
+                vctcxo_tamer_reset_counters(true);
 
                 /* Set next interrupt state. */
                 tune_state = COARSE_TUNE_DONE;
