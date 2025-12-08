@@ -145,13 +145,13 @@ class PPSDO(LiteXModule):
             self._status_state.status          .eq(self.status.state),
         ]
 
-    def add_sources(self):
+    def add_sources(self, dac_bits=16):
         from litex.gen import LiteXContext
         cdir = os.path.abspath(os.path.dirname(__file__))
 
         # Generate Core.
         # --------------
-        ret = os.system(f"cd {cdir} && python3 ppsdo_gen.py --sys-clk-freq={LiteXContext.top.sys_clk_freq}")
+        ret = os.system(f"cd {cdir} && python3 ppsdo_gen.py --sys-clk-freq={LiteXContext.top.sys_clk_freq} --dac-bits={dac_bits}")
         if ret != 0:
             raise RuntimeError(f"PPSDO generation failed.")
 

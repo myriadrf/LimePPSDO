@@ -132,6 +132,8 @@ void vctcxo_trim_dac_write(uint16_t val)
     uint8_t tuned_val_lsb;
     uint8_t tuned_val_msb;
 
+    vctcxo_trim_dac_value = val;
+
     tuned_val_lsb = (uint8_t) ((val & 0x00FF) >> 0);
     tuned_val_msb = (uint8_t) ((val & 0xFF00) >> 8);
 

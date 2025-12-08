@@ -109,7 +109,7 @@ class _CRG(LiteXModule):
 # PPSDO --------------------------------------------------------------------------------------------
 
 class PPSDO(SoCCore):
-    def __init__(self, sys_clk_freq=6e6, firmware_path=None, **kwargs):
+    def __init__(self, sys_clk_freq=6e6, dac_bits=16, firmware_path=None, **kwargs):
         platform = Platform()
 
         # SoCCore ----------------------------------------------------------------------------------
@@ -120,7 +120,7 @@ class PPSDO(SoCCore):
         # - SRAM          : Minimal stack/scratchpad.
         # - ROM           : Automatically reduced to used space by LiteX.
 
-        kwargs["cpu_type"]             = "serv"
+        kwargs["cpu_type"]             = "fazyrv" # Looks like serv has issues with floating point math, changed to fazyrv
         kwargs["with_timer"]           = False
         kwargs["with_ctrl"]            = False
         kwargs["uart_name"]            = "uart"
@@ -129,6 +129,12 @@ class PPSDO(SoCCore):
         kwargs["integrated_rom_init"]  = firmware_path
 
         SoCCore.__init__(self, platform, sys_clk_freq, **kwargs)
+
+        # DAC config
+        # Calculate max digital value: (2 ^ dac_bits) - 1
+        dac_max = (1 << dac_bits) - 1
+        self.add_constant("CONFIG_DAC_MIN", 0)
+        self.add_constant("CONFIG_DAC_MAX", dac_max)
 
         # CRG --------------------------------------------------------------------------------------
 
@@ -216,6 +222,7 @@ def main():
     parser = LiteXArgumentParser(description="Standalone PPSDO core generator.")
     parser.add_argument("--build",       action="store_true",  help="Generate Verilog.")
     parser.add_argument("--sys-clk-freq",default=6e6,          help="System clock frequency (default: 6MHz)")
+    parser.add_argument("--dac-bits",    default=16,           help="DAC resolution in bits (default: 16")
     args = parser.parse_args()
 
     # SoC.
@@ -224,6 +231,7 @@ def main():
         build   = ((run == 1) and args.build)
         soc = PPSDO(
             sys_clk_freq  = int(float(args.sys_clk_freq)),
+            dac_bits      = int(args.dac_bits),
             firmware_path = None if prepare else "firmware/firmware.bin",
         )
         soc.platform.name = "ppsdo"

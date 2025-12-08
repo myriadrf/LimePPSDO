@@ -65,9 +65,19 @@ static void delay_ms(uint32_t ms)
  */
 static void adjust_trim_dac(int32_t error, float slope, int scale) {
     /* Compute new trim DAC value */
-    vctcxo_trim_dac_value = (
-        vctcxo_trim_dac_value -
-        (uint16_t)(lroundf((float)error * slope) / scale));
+    /* Use signed 32-bit integer for calculation to handle negatives */
+    int32_t new_value = (int32_t)vctcxo_trim_dac_value -
+            (int32_t)(lroundf((float)error * slope) / scale);
+
+    /* Clamp the value to the DAC limits */
+    if (new_value > CONFIG_DAC_MAX) {
+        new_value = CONFIG_DAC_MAX;
+    } else if (new_value < 0) {
+        new_value = 0;
+    }
+
+    /* Update global variable */
+    vctcxo_trim_dac_value = (uint16_t)new_value;
 
     /* Write value to VCTCXO Tamer. */
     vctcxo_trim_dac_write(vctcxo_trim_dac_value);
@@ -84,8 +94,13 @@ int main(void)
 #endif
 
     /* Trim DAC constants. */
+#ifdef CONFIG_DAC_MAX
+    const uint16_t trimdac_min = 0x0000;         /* Decimal value = 0. */
+    const uint16_t trimdac_max = CONFIG_DAC_MAX; /* Decimal value = Defined in SOC build process. */
+#else
     const uint16_t trimdac_min = 0x0000; /* Decimal value = 0. */
     const uint16_t trimdac_max = 0xFFFF; /* Decimal value = 65535. */
+#endif
 
     /* Trim DAC calibration line. */
     line_t trimdac_cal_line;
@@ -155,8 +170,6 @@ int main(void)
 #endif
                 /* Set trim DAC to minimum value. */
                 vctcxo_trim_dac_write(trimdac_min);
-                // Force a wait
-                delay_ms(2000);
                 vctcxo_tamer_reset_counters(true);
 
                 /* Set next interrupt state. */
@@ -177,8 +190,6 @@ int main(void)
 
                 /* Set DAC to maximum value. */
                 vctcxo_trim_dac_write(trimdac_max);
-                // Force a wait
-                delay_ms(2000);
                 vctcxo_tamer_reset_counters(true);
 
                 /* Set next interrupt state. */
