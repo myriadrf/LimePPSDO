@@ -123,6 +123,11 @@ int main(void)
     /* Set Default VCTCXO DAC value. */
     vctcxo_trim_dac_write(VCTCXO_DEFAULT_DAC_VALUE);
 
+    /* Initialize VCTCXO Tamer state and hardware to a clean idle state. */
+    vctcxo_tamer_ctrl_reg = 0x01; // Reset=1, Mode=Disabled
+    vctcxo_tamer_write(VT_CTRL_ADDR, vctcxo_tamer_ctrl_reg);
+    vctcxo_tamer_write(VT_STATE_ADDR, 0x00); // Clear internal firmware state
+
     /* ---------- */
     /*  Main Loop */
     /* ---------- */
