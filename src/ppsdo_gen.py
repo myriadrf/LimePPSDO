@@ -235,7 +235,7 @@ def main():
             firmware_path = None if prepare else "firmware/firmware.bin",
         )
         soc.platform.name = "ppsdo"
-        builder = Builder(soc)
+        builder = Builder(soc,libc_mode="full")
         builder.build(run=build)
         if prepare:
             ret = os.system(f"cd firmware && make clean all")
