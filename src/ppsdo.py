@@ -9,8 +9,10 @@
 import os
 
 from migen import *
+from migen.genlib.cdc import MultiReg
 
 from litex.gen import *
+from litex.gen.genlib.cdc import BusSynchronizer
 
 from litex.soc.interconnect.csr import *
 
@@ -43,7 +45,10 @@ ppsdo_status_layout = [
 # PPSDO --------------------------------------------------------------------------------------------
 
 class PPSDO(LiteXModule):
-    def __init__(self, cd_sys="sys", cd_rf="rf", with_csr=False):
+    def __init__(self, cd_sys="sys", cd_rf="rf", with_csr=False, sys_clk_freq=None):
+        self.cd_sys       = cd_sys
+        self.sys_clk_freq = sys_clk_freq
+
         # Control.
         self.enable = Signal()
 
@@ -65,6 +70,44 @@ class PPSDO(LiteXModule):
 
         # # #
 
+        # CDC.
+        # ----
+        _enable = self.enable
+        _pps    = self.pps
+        _uart   = self.uart
+        _config = self.config
+        _status = self.status
+
+        if cd_sys != "sys":
+            # Control/PPS (sys -> cd_sys).
+            _enable = Signal()
+            _pps    = Signal()
+            self.specials += MultiReg(self.enable, _enable, odomain=cd_sys)
+            self.specials += MultiReg(self.pps,    _pps,    odomain=cd_sys)
+
+            # UART (RX: sys -> cd_sys, TX: cd_sys -> sys).
+            _uart = Record(ppsdo_uart_layout)
+            self.specials += MultiReg(self.uart.rx, _uart.rx, odomain=cd_sys)
+            self.specials += MultiReg(_uart.tx, self.uart.tx, odomain="sys")
+
+            # Config (sys -> cd_sys).
+            _config = Record(ppsdo_config_layout)
+            config_cdc = BusSynchronizer(len(self.config), "sys", cd_sys)
+            self.submodules += config_cdc
+            self.comb += [
+                config_cdc.i.eq(self.config.raw_bits()),
+                _config.raw_bits().eq(config_cdc.o),
+            ]
+
+            # Status (cd_sys -> sys).
+            _status = Record(ppsdo_status_layout)
+            status_cdc = BusSynchronizer(len(self.status), cd_sys, "sys")
+            self.submodules += status_cdc
+            self.comb += [
+                status_cdc.i.eq(_status.raw_bits()),
+                self.status.raw_bits().eq(status_cdc.o),
+            ]
+
         # Instance.
         # ---------
         self.specials += Instance("ppsdo",
@@ -77,31 +120,31 @@ class PPSDO(LiteXModule):
             i_rf_rst               = ResetSignal(cd_rf),
 
             # Control.
-            i_enable               = self.enable,
+            i_enable               = _enable,
 
             # PPS.
-            i_pps                  = self.pps,
+            i_pps                  = _pps,
 
             # UART.
-            i_uart_rx              = self.uart.rx,
-            o_uart_tx              = self.uart.tx,
+            i_uart_rx              = _uart.rx,
+            o_uart_tx              = _uart.tx,
 
             # Core Config.
-            i_config_1s_target     = self.config.one_s_target,
-            i_config_1s_tol        = self.config.one_s_tol,
-            i_config_10s_target    = self.config.ten_s_target,
-            i_config_10s_tol       = self.config.ten_s_tol,
-            i_config_100s_target   = self.config.hundred_s_target,
-            i_config_100s_tol      = self.config.hundred_s_tol,
+            i_config_1s_target     = _config.one_s_target,
+            i_config_1s_tol        = _config.one_s_tol,
+            i_config_10s_target    = _config.ten_s_target,
+            i_config_10s_tol       = _config.ten_s_tol,
+            i_config_100s_target   = _config.hundred_s_target,
+            i_config_100s_tol      = _config.hundred_s_tol,
 
             # Core Status.
-            o_status_1s_error      = self.status.one_s_error,
-            o_status_10s_error     = self.status.ten_s_error,
-            o_status_100s_error    = self.status.hundred_s_error,
-            o_status_dac_tuned_val = self.status.dac_tuned_val,
-            o_status_accuracy      = self.status.accuracy,
-            o_status_pps_active    = self.status.pps_active,
-            o_status_state         = self.status.state,
+            o_status_1s_error      = _status.one_s_error,
+            o_status_10s_error     = _status.ten_s_error,
+            o_status_100s_error    = _status.hundred_s_error,
+            o_status_dac_tuned_val = _status.dac_tuned_val,
+            o_status_accuracy      = _status.accuracy,
+            o_status_pps_active    = _status.pps_active,
+            o_status_state         = _status.state,
         )
 
     def add_csr(self):
@@ -149,9 +192,29 @@ class PPSDO(LiteXModule):
         from litex.gen import LiteXContext
         cdir = os.path.abspath(os.path.dirname(__file__))
 
+        # Frequency Discovery.
+        # --------------------
+        sys_clk_freq = self.sys_clk_freq
+        if sys_clk_freq is None:
+            if self.cd_sys == "sys":
+                sys_clk_freq = LiteXContext.top.sys_clk_freq
+            else:
+                # Try to discover from SoC.
+                soc = LiteXContext.top
+                # 1. Check for {cd}_clk_freq attribute.
+                sys_clk_freq = getattr(soc, f"{self.cd_sys}_clk_freq", None)
+                # 2. Check for constants.
+                if sys_clk_freq is None:
+                    constants = getattr(soc, "constants", {})
+                    sys_clk_freq = constants.get(f"{self.cd_sys.upper()}_CLK_FREQ")
+
+        if sys_clk_freq is None:
+             raise RuntimeError(f"Could not determine frequency for clock domain {self.cd_sys}. "
+                               f"Please provide sys_clk_freq explicitly.")
+
         # Generate Core.
         # --------------
-        ret = os.system(f"cd {cdir} && python3 ppsdo_gen.py --sys-clk-freq={LiteXContext.top.sys_clk_freq} --dac-bits={dac_bits}")
+        ret = os.system(f"cd {cdir} && python3 ppsdo_gen.py --sys-clk-freq={sys_clk_freq} --dac-bits={dac_bits}")
         if ret != 0:
             raise RuntimeError(f"PPSDO generation failed.")
 

@@ -121,7 +121,7 @@ class PPSDO(SoCCore):
         # - ROM           : Automatically reduced to used space by LiteX.
 
         kwargs["cpu_type"]             = "fazyrv" # Looks like serv has issues with floating point math, changed to fazyrv
-        kwargs["with_timer"]           = False
+        kwargs["with_timer"]           = True
         kwargs["with_ctrl"]            = False
         kwargs["uart_name"]            = "uart"
         kwargs["integrated_sram_size"] = 0x100
