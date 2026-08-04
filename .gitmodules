@@ -1,4 +1,3 @@
-[submodule "gateware/src/LimeDFB"]
-	path = gateware/src/LimeDFB
-	url = https://github.com/enjoy-digital/LimeDFB.git
-	branch = ppsdo
+[submodule "src/FazyRV"]
+	path = src/FazyRV
+	url = https://github.com/meiniKi/FazyRV
