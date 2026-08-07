@@ -188,7 +188,11 @@ class PPSDO(LiteXModule):
             self._status_state.status          .eq(self.status.state),
         ]
 
-    def add_sources(self, dac_bits=16):
+    def add_sources(self, dac_bits=16, patch_fazyrv=False):
+        if patch_fazyrv:
+            from .patch_fazyrv import patch_fazyrv_sources
+            patch_fazyrv_sources()
+
         from litex.gen import LiteXContext
         cdir = os.path.abspath(os.path.dirname(__file__))
 
