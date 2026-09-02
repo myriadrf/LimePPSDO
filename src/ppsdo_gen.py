@@ -12,6 +12,7 @@
 import os
 import sys
 import argparse
+import shlex
 
 sys.path.append("../../")
 
@@ -191,8 +192,10 @@ class PPSDO(SoCCore):
             status_state         .eq(self.vctcxo_tamer.status_state),
         ]
 
-    def export_sources(self, filename):
-        gateware_dir = os.path.join("build", self.platform.name, "gateware")
+    def export_sources(self, filename, output_dir=None):
+        if output_dir is None:
+            output_dir = os.path.join("build", self.platform.name)
+        gateware_dir = os.path.join(output_dir, "gateware")
         output_path  = os.path.join(gateware_dir, filename)
         os.makedirs(gateware_dir, exist_ok=True)
         with open(output_path, "w") as f:
@@ -221,9 +224,12 @@ def main():
     from litex.build.parser import LiteXArgumentParser
     parser = LiteXArgumentParser(description="Standalone PPSDO core generator.")
     parser.add_argument("--build",       action="store_true",  help="Generate Verilog.")
+    parser.add_argument("--build-dir",   default="build/ppsdo", help="Build output directory (default: build/ppsdo).")
     parser.add_argument("--sys-clk-freq",default=6e6,          help="System clock frequency (default: 6MHz)")
     parser.add_argument("--dac-bits",    default=16,           help="DAC resolution in bits (default: 16")
     args = parser.parse_args()
+
+    output_dir = os.path.abspath(args.build_dir)
 
     # SoC.
     for run in range(2):
@@ -235,15 +241,15 @@ def main():
             firmware_path = None if prepare else "firmware/firmware.bin",
         )
         soc.platform.name = "ppsdo"
-        builder = Builder(soc,libc_mode="full")
+        builder = Builder(soc, output_dir=output_dir, libc_mode="full")
         builder.build(run=build)
         if prepare:
-            ret = os.system(f"cd firmware && make clean all")
+            ret = os.system(f"cd firmware && make BUILD_DIR={shlex.quote(builder.output_dir)} clean all")
             if ret != 0:
                 raise RuntimeError("Firmware build failed.")
 
     # Export sources
-    soc.export_sources(f"ppsdo_sources.py")
+    soc.export_sources(f"ppsdo_sources.py", output_dir=output_dir)
 
 if __name__ == "__main__":
     main()
