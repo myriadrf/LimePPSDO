@@ -240,3 +240,7 @@ class PPSDO(LiteXModule):
             if not os.path.isabs(path):
                 path = os.path.join(cdir, path)
             platform.add_source(path, lang, lib)
+
+    def add_altera_platform_constraints(self,platform):
+        platform.add_platform_command('set_instance_assignment -name RAMSTYLE_ATTRIBUTE M9K -to "*fazyrv_ram*ram_r*"')
+        platform.add_platform_command('set_instance_assignment -name ADD_PASS_THROUGH_LOGIC_TO_INFERRED_RAMS OFF -to "*fazyrv_ram*ram_r*"')
