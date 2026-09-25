@@ -110,7 +110,7 @@ class _CRG(LiteXModule):
 # PPSDO --------------------------------------------------------------------------------------------
 
 class PPSDO(SoCCore):
-    def __init__(self, sys_clk_freq=6e6, dac_bits=16, firmware_path=None, **kwargs):
+    def __init__(self, sys_clk_freq=6e6, dac_bits=16, firmware_path=None, cpu_rftype=None, **kwargs):
         platform = Platform()
 
         # SoCCore ----------------------------------------------------------------------------------
@@ -128,6 +128,10 @@ class PPSDO(SoCCore):
         kwargs["integrated_sram_size"] = 0x100
         kwargs["integrated_rom_size"]  = 0x2000
         kwargs["integrated_rom_init"]  = firmware_path
+
+        if cpu_rftype is not None:
+            from litex.soc.cores.cpu.fazyrv.core import FazyRV
+            FazyRV.rftype = cpu_rftype
 
         SoCCore.__init__(self, platform, sys_clk_freq, **kwargs)
 
@@ -227,6 +231,7 @@ def main():
     parser.add_argument("--build-dir",   default="build/ppsdo", help="Build output directory (default: build/ppsdo).")
     parser.add_argument("--sys-clk-freq",default=6e6,          help="System clock frequency (default: 6MHz)")
     parser.add_argument("--dac-bits",    default=16,           help="DAC resolution in bits (default: 16")
+    parser.add_argument("--cpu-rftype",  default=None,         help="FazyRV register file type override.")
     args = parser.parse_args()
 
     output_dir = os.path.abspath(args.build_dir)
@@ -239,6 +244,7 @@ def main():
             sys_clk_freq  = int(float(args.sys_clk_freq)),
             dac_bits      = int(args.dac_bits),
             firmware_path = None if prepare else "firmware/firmware.bin",
+            cpu_rftype    = args.cpu_rftype,
         )
         soc.platform.name = "ppsdo"
         builder = Builder(soc, output_dir=output_dir, libc_mode="full")

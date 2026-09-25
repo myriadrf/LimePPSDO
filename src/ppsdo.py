@@ -45,9 +45,10 @@ ppsdo_status_layout = [
 # PPSDO --------------------------------------------------------------------------------------------
 
 class PPSDO(LiteXModule):
-    def __init__(self, cd_sys="sys", cd_rf="rf", with_csr=False, sys_clk_freq=None):
+    def __init__(self, cd_sys="sys", cd_rf="rf", with_csr=False, sys_clk_freq=None, cpu_rftype=None):
         self.cd_sys       = cd_sys
         self.sys_clk_freq = sys_clk_freq
+        self.cpu_rftype   = cpu_rftype
 
         # Control.
         self.enable = Signal()
@@ -188,11 +189,7 @@ class PPSDO(LiteXModule):
             self._status_state.status          .eq(self.status.state),
         ]
 
-    def add_sources(self, dac_bits=16, patch_fazyrv=False):
-        if patch_fazyrv:
-            from .patch_fazyrv import patch_fazyrv_sources
-            patch_fazyrv_sources()
-
+    def add_sources(self, dac_bits=16, cpu_rftype=None):
         from litex.gen import LiteXContext
         cdir = os.path.abspath(os.path.dirname(__file__))
 
@@ -218,7 +215,11 @@ class PPSDO(LiteXModule):
 
         # Generate Core.
         # --------------
-        ret = os.system(f"cd {cdir} && python3 ppsdo_gen.py --sys-clk-freq={sys_clk_freq} --dac-bits={dac_bits}")
+        rftype = cpu_rftype if cpu_rftype is not None else self.cpu_rftype
+        cmd = f"cd {cdir} && python3 ppsdo_gen.py --sys-clk-freq={sys_clk_freq} --dac-bits={dac_bits}"
+        if rftype is not None:
+            cmd += f" --cpu-rftype={rftype}"
+        ret = os.system(cmd)
         if ret != 0:
             raise RuntimeError(f"PPSDO generation failed.")
 
