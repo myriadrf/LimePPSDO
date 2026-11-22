@@ -253,7 +253,8 @@ class PPSDO(LiteXModule):
           Verilog-2001 write loop and splits it into four 64 x 8 RAMs (4 M9K for 256 B). It is
           replaced by a SystemVerilog packed-array module that infers one byte-enabled M9K.
         - UART RX FIFO (16 x 10): forced into logic instead of a whole M9K.
-        Saves 4 M9K. Behaviour is unchanged (same registered-address, write-first read).
+        - Firmware ROM: max_depth 1024 (1143 x 32: 5 M9K instead of up to 8).
+        Saves 4-7 M9K. Behaviour is unchanged (same registered-address, write-first read).
         """
         import re
         cdir = os.path.abspath(os.path.dirname(__file__))
@@ -287,6 +288,10 @@ class PPSDO(LiteXModule):
                 f"\t.dat_w({m.group('dat_w')}), .dat_r({m.group('dat_r')})\n"
                 f");\n") + v[m.end():]
         v = v.replace("reg [9:0] storage_1[0:15];", '(* ramstyle = "logic" *) reg [9:0] storage_1[0:15];')
+        # Firmware ROM (N x 32, N not a power of two, e.g. 1143), platforms that opt in: max_depth 1024 -> 1024 x 9-bit
+        # slices plus one block for the remainder (5 M9K for 1143 x 32) instead of 2048 x 4 (8 M9K).
+        if getattr(platform, "dense_ram_packing", False):
+            v = re.sub(r"^reg \[31:0\] rom\[0:(\d+)\];$", r"(* max_depth = 1024 *) reg [31:0] rom[0:\1];", v, flags=re.M)
         with open(vfile, "w") as f:
             f.write(v)
 
